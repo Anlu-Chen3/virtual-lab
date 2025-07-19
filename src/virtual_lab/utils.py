@@ -6,8 +6,18 @@ from pathlib import Path
 
 import requests
 import tiktoken
-from openai import AsyncOpenAI, OpenAI
-from openai.types.beta.threads.run import Run
+
+ILIAD_URL_BASE = "cutome_url"
+
+url = ILIAD_URL_BASE + "/api/v1/chat/gpt-4o-mini"
+headers = {"x-api-key": "key"}
+message = {
+    "role": "user",
+    "content": "what does the fox say?"
+}
+payload = {"messages": [message]}
+resp = requests.post(url, json=payload, headers=headers)
+print(resp.json())
 
 from virtual_lab.constants import (
     DEFAULT_FINETUNING_EPOCHS,
@@ -169,96 +179,28 @@ def run_tools(run: Run) -> list[dict[str, str]]:
     return tool_outputs
 
 
-def get_messages(client: OpenAI, thread_id: str) -> list[dict]:
-    """Gets messages from a thread.
+def get_messages(thread_id: str, api_key: str = "key") -> list[dict]:
+    """Gets messages from a thread using the custom ILIAD API."""
+    ILIAD_URL_BASE = "cutome_url"
+    url = ILIAD_URL_BASE + "/api/v1/chat/gpt-4o-mini"
+    headers = {"x-api-key": api_key}
+    payload = {"thread_id": thread_id}
+    resp = requests.post(url, json=payload, headers=headers)
+    resp.raise_for_status()
+    return resp.json().get("messages", [])
 
-    :param client: The OpenAI client.
-    :param thread_id: The ID of the thread to get messages from.
-    :return: A list of messages.
-    """
-    # Set up
-    messages = []
-    last_message = None
-    params = {
-        "thread_id": thread_id,
-        "limit": 100,
-        "order": "asc",
-    }
+import httpx
 
-    # Get all messages from the thread page by page
-    while True:
-        # Set up params
-        if last_message is not None:
-            params["after"] = last_message["id"]
-        elif "after" in params:
-            del params["after"]
-
-        # Get messages
-        new_messages = [
-            message.to_dict() for message in client.beta.threads.messages.list(**params)
-        ]
-
-        # Append new messages
-        messages += new_messages
-
-        # Break if no more messages
-        if len(new_messages) < params["limit"]:
-            break
-
-        # Get last message
-        last_message = messages[-1]
-
-    # Verify all message content is length 1
-    assert all(len(message["content"]) == 1 for message in messages)
-
-    return messages
-
-
-async def async_get_messages(client: AsyncOpenAI, thread_id: str) -> list[dict]:
-    """Gets messages from a thread.
-
-    :param client: The async OpenAI client.
-    :param thread_id: The ID of the thread to get messages from.
-    :return: A list of messages.
-    """
-    # Set up
-    messages = []
-    last_message = None
-    params = {
-        "thread_id": thread_id,
-        "limit": 100,
-        "order": "asc",
-    }
-
-    # Get all messages from the thread page by page
-    while True:
-        # Set up params
-        if last_message is not None:
-            params["after"] = last_message["id"]
-        elif "after" in params:
-            del params["after"]
-
-        # Get messages
-        new_messages = [
-            message.to_dict()
-            async for message in client.beta.threads.messages.list(**params)
-        ]
-
-        # Append new messages
-        messages += new_messages
-
-        # Break if no more messages
-        if len(new_messages) < params["limit"]:
-            break
-
-        # Get last message
-        last_message = messages[-1]
-
-    # Verify all message content is length 1
-    assert all(len(message["content"]) == 1 for message in messages)
-
-    return messages
-
+async def async_get_messages(thread_id: str, api_key: str = "key") -> list[dict]:
+    """Gets messages from a thread using the custom ILIAD API (async)."""
+    ILIAD_URL_BASE = "cutome_url"
+    url = ILIAD_URL_BASE + "/api/v1/chat/gpt-4o-mini"
+    headers = {"x-api-key": api_key}
+    payload = {"thread_id": thread_id}
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        return resp.json().get("messages", [])
 
 def count_tokens(string: str, encoding_name: str = "cl100k_base") -> int:
     """Returns the number of tokens in a text string.
